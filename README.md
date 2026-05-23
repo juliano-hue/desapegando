@@ -58,3 +58,19 @@ npx prisma migrate deploy
 - Login/cadastro e sessão por cookie
 - Criar/editar anúncio
 - Upload de imagens (URLs do Supabase Storage)
+
+## Rodar local com Docker (Postgres)
+Pré-requisito: Docker Desktop.
+
+```bash
+docker compose up -d --build
+```
+
+## Testes (com Postgres)
+Configure `TEST_DATABASE_URL` apontando para um Postgres (pode ser o Postgres do docker compose).
+
+Exemplo:
+
+```bash
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/desapegando?schema=public" npm test
+```
