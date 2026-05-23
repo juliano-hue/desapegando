@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: desapegando
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: API_PUBLIC_ORIGIN
+        sync: false
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1
