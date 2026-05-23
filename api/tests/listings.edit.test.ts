@@ -1,20 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { execSync } from 'node:child_process'
-import os from 'node:os'
-import path from 'node:path'
 
 let app: unknown
 let prisma: any
 let categoryId = ''
 
+const TEST_DB_URL = process.env.TEST_DATABASE_URL?.trim()
+const suite = TEST_DB_URL ? describe : describe.skip
+
 beforeAll(async () => {
-  const dbPath = path.join(os.tmpdir(), `desapegando-test-${Date.now()}-${Math.random().toString(16).slice(2)}.db`)
-  process.env.DATABASE_URL = `file:${dbPath}`
+  if (!TEST_DB_URL) return
+  process.env.DATABASE_URL = TEST_DB_URL
   process.env.JWT_SECRET = 'test-secret'
   process.env.FRONTEND_ORIGIN = 'http://localhost:5173'
   process.env.API_PUBLIC_ORIGIN = 'http://localhost:3002'
-  process.env.UPLOAD_DIR = path.join(os.tmpdir(), `desapegando-uploads-test-${Date.now()}`)
 
   execSync('npx prisma generate', { cwd: process.cwd(), env: process.env, stdio: 'ignore' })
   execSync('npx prisma migrate deploy', { cwd: process.cwd(), env: process.env, stdio: 'ignore' })
@@ -43,7 +43,7 @@ async function register(agent: any, email: string) {
   expect(r.status).toBe(201)
 }
 
-describe('Edição de anúncios', () => {
+suite('Edição de anúncios', () => {
   it('permite criar anúncio com campos faltantes', async () => {
     const agent = request.agent(app as any)
     await register(agent, `empty-${Date.now()}@exemplo.com`)

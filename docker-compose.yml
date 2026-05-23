@@ -1,4 +1,15 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: desapegando
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   app:
     build: .
     ports:
@@ -6,10 +17,15 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: "file:/var/data/dev.db"
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/desapegando?schema=public"
       UPLOAD_DIR: "/var/data/uploads"
       FRONTEND_ORIGIN: "http://localhost:3001"
       API_PUBLIC_ORIGIN: "http://localhost:3001"
       JWT_SECRET: "troque-por-uma-chave-forte"
     volumes:
       - ./data:/var/data
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

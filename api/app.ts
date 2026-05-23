@@ -13,6 +13,7 @@ import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import cookieParser from 'cookie-parser'
 import passport from 'passport'
+import { prisma } from './db.js'
 import authRoutes from './routes/auth.js'
 import categoryRoutes from './routes/categories.js'
 import listingRoutes from './routes/listings.js'
@@ -49,6 +50,16 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cookieParser())
 app.use(passport.initialize())
+
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.$connect()
+    next()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    res.status(503).json({ success: false, error: 'Falha de conexão com o banco de dados', detail: msg })
+  }
+})
 
 app.use('/uploads', express.static(getUploadDir()))
 

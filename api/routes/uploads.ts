@@ -6,6 +6,7 @@ import { z } from 'zod'
 import multer from 'multer'
 import { requireAuth } from '../auth.js'
 import { getUploadDir } from '../uploadDir.js'
+import { getSupabaseAdmin, getSupabaseBucket } from '../supabase.js'
 
 const router = Router()
 
@@ -40,10 +41,24 @@ async function writeImage(buf: Buffer, mime: string, originalName?: string): Pro
   const ext = getImageExt(mime, originalName)
   if (!ext) throw new Error('Formato não suportado')
   const fileName = `${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`
+
+  const supabase = getSupabaseAdmin()
+  if (supabase) {
+    const bucket = getSupabaseBucket()
+    const objectPath = `${new Date().toISOString().slice(0, 10)}/${fileName}`
+    const up = await supabase.storage.from(bucket).upload(objectPath, buf, { contentType: mime, upsert: false })
+    if (up.error) throw new Error(`Falha ao salvar imagem (storage): ${up.error.message}`)
+    const pub = supabase.storage.from(bucket).getPublicUrl(objectPath)
+    const publicUrl = pub.data?.publicUrl
+    if (!publicUrl) throw new Error('Falha ao obter URL pública da imagem')
+    return publicUrl
+  }
+
   const uploadDir = getUploadDir()
   await fs.mkdir(uploadDir, { recursive: true })
   await fs.writeFile(path.join(uploadDir, fileName), buf)
-  return fileName
+  const baseUrl = process.env.API_PUBLIC_ORIGIN ?? 'http://localhost:3002'
+  return `${baseUrl}/uploads/${fileName}`
 }
 
 router.post('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
@@ -77,8 +92,7 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
     return
   }
 
-  const baseUrl = process.env.API_PUBLIC_ORIGIN ?? 'http://localhost:3002'
-  res.status(201).json({ success: true, url: `${baseUrl}/uploads/${fileName}` })
+  res.status(201).json({ success: true, url: fileName })
 })
 
 router.post('/file', requireAuth, upload.single('file'), async (req: Request, res: Response): Promise<void> => {
@@ -100,8 +114,7 @@ router.post('/file', requireAuth, upload.single('file'), async (req: Request, re
     res.status(500).json({ success: false, error: 'Falha ao salvar imagem' })
     return
   }
-  const baseUrl = process.env.API_PUBLIC_ORIGIN ?? 'http://localhost:3002'
-  res.status(201).json({ success: true, url: `${baseUrl}/uploads/${fileName}` })
+  res.status(201).json({ success: true, url: fileName })
 })
 
 export default router

@@ -22,56 +22,39 @@ npm install
 npm run dev
 ```
 
-## Deploy em produção (Render – recomendado)
+## Deploy em produção (Vercel + Neon + Supabase)
 
-Esta aplicação pode ser publicada como **um único serviço web**: o backend Express serve a API e também os arquivos estáticos do frontend (Vite build).
+Arquitetura recomendada para Vercel:
+- Banco: Postgres (Neon)
+- Uploads: Supabase Storage
 
-### 1) Criar repositório (GitHub)
-1) Crie um repositório no GitHub (ex.: `desapegando`).
-2) No seu computador, inicialize e envie o código:
+### 1) Criar conta e serviços
+- Neon: crie um projeto Postgres e copie a connection string (com `sslmode=require`)
+- Supabase: crie um projeto e um bucket Storage público (ex.: `uploads`)
 
-```bash
-git init
-git add .
-git commit -m "Deploy-ready"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/desapegando.git
-git push -u origin main
-```
+### 2) Variáveis de ambiente (Vercel)
+Vercel → Project → Settings → Environment Variables:
+- `DATABASE_URL` (Neon, Postgres)
+- `JWT_SECRET` (obrigatório)
+- `FRONTEND_ORIGIN` = `https://SEUAPP.vercel.app`
+- `API_PUBLIC_ORIGIN` = `https://SEUAPP.vercel.app`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_BUCKET` = `uploads`
 
-### 2) Criar serviço no Render
-1) Acesse https://render.com e conecte sua conta do GitHub.
-2) Selecione “New” → “Blueprint” e escolha o repositório.
-3) O Render vai ler o arquivo `render.yaml` e criar o serviço automaticamente.
+### 3) Deploy
+1) Vercel → New Project → Import `juliano-hue/desapegando`
+2) Deploy
 
-### 3) Variáveis de ambiente (Render)
-Configure no serviço:
-- `DATABASE_URL`
-  - Opção simples (SQLite em disco persistente): `file:/var/data/dev.db`
-- `JWT_SECRET` (obrigatório): string forte
-- `FRONTEND_ORIGIN`: `https://SEU-SERVICO.onrender.com`
-- `API_PUBLIC_ORIGIN`: `https://SEU-SERVICO.onrender.com`
-- `UPLOAD_DIR`: já vem como `/var/data/uploads` via `render.yaml`
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (opcional)
-
-### 4) Migrações do banco
-Após o primeiro deploy, rode (no Shell do Render ou localmente apontando para o mesmo `DATABASE_URL`):
+### 4) Migrações
+Após o deploy, rode localmente apontando para o `DATABASE_URL` do Neon:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-### 5) Domínio e SSL
-- Subdomínio do Render: já funciona com HTTPS.
-- Domínio próprio: Render → “Settings” → “Custom Domains” e siga as instruções de DNS. O SSL é provisionado automaticamente.
-
-## Checklist pós-deploy
-- Abrir o site e navegar entre páginas (Home, Perfil, Anúncio).
-- Login/cadastro e manutenção de sessão (cookie).
-- Criar anúncio e visualizar.
-- Importação em lote e upload de imagens (verifique `/uploads/...`).
-- Reserva via WhatsApp no detalhe do anúncio.
-
-## Manutenção
-- Atualizações: dê push no GitHub e o Render redeploya automaticamente.
-- Uploads: ficam no disco persistente `/var/data` (plano Starter no blueprint usa 1GB; ajuste conforme necessário).
+### Checklist pós-deploy
+- `https://SEUAPP.vercel.app/api/health`
+- Login/cadastro e sessão por cookie
+- Criar/editar anúncio
+- Upload de imagens (URLs do Supabase Storage)
