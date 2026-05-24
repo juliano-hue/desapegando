@@ -37,3 +37,6 @@ public/uploads/*
 *.sw?
 .vite
 /generated/prisma
+
+# Backups locais
+.backup/

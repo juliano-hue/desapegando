@@ -23,7 +23,8 @@ export function ListingCard({ listing }: { listing: Listing }) {
             src={cover}
             alt={listing.title}
             loading="lazy"
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            decoding="async"
+            className="h-full w-full object-contain object-center"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">

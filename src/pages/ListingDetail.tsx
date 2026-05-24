@@ -190,7 +190,7 @@ export default function ListingDetail() {
               <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/4">
                 <div className="relative aspect-[16/10] w-full bg-white/6">
                   {cover ? (
-                    <img src={cover} alt={listing.title} className="h-full w-full object-cover" />
+                    <img src={cover} alt={listing.title} className="h-full w-full object-contain object-center" decoding="async" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">Sem fotos</div>
                   )}
@@ -215,7 +215,7 @@ export default function ListingDetail() {
                         }
                         aria-label={`Selecionar imagem ${i + 1}`}
                       >
-                        <img src={img.url} alt="" className="aspect-square w-full object-cover" loading="lazy" />
+                        <img src={img.url} alt="" className="aspect-square w-full object-contain object-center" loading="lazy" decoding="async" />
                       </button>
                     ))}
                   </div>

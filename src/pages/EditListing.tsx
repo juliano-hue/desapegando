@@ -275,9 +275,9 @@ export default function EditListing() {
                   <div className="text-xs font-semibold text-slate-200">Imagem principal</div>
                   <div className="relative mt-2 overflow-hidden rounded-2xl border border-white/10 bg-white/6">
                     {initialCoverUrl ? (
-                      <img src={initialCoverUrl} alt="Imagem principal do anúncio" className="aspect-square w-full object-cover" />
+                      <img src={initialCoverUrl} alt="Imagem principal do anúncio" className="aspect-square w-full object-contain object-center" decoding="async" />
                     ) : currentCoverUrl ? (
-                      <img src={currentCoverUrl} alt="Imagem principal do anúncio" className="aspect-square w-full object-cover" />
+                      <img src={currentCoverUrl} alt="Imagem principal do anúncio" className="aspect-square w-full object-contain object-center" decoding="async" />
                     ) : (
                       <div className="flex aspect-square items-center justify-center text-sm text-slate-400">Sem foto</div>
                     )}
@@ -435,7 +435,7 @@ export default function EditListing() {
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   {images.map((url, idx) => (
                     <div key={`${url}-${idx}`} className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/6">
-                      <img src={url} alt={`Foto ${idx + 1}`} className="aspect-square w-full object-cover" loading="lazy" />
+                      <img src={url} alt={`Foto ${idx + 1}`} className="aspect-square w-full object-contain object-center" loading="lazy" decoding="async" />
                       <button
                         type="button"
                         onClick={() => setImages((prev) => prev.filter((u) => u !== url))}

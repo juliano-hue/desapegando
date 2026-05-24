@@ -302,7 +302,8 @@ export default function Profile() {
                         <img
                           src={order.listing.images[0].url}
                           alt={order.listing.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain object-center"
+                          decoding="async"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-xs text-slate-500">
@@ -350,7 +351,8 @@ export default function Profile() {
                         <img
                           src={sale.listing.images[0].url}
                           alt={sale.listing.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain object-center"
+                          decoding="async"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-xs text-slate-500">

@@ -549,7 +549,7 @@ export default function BulkImport() {
                   <div key={it.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <div className="grid gap-4 md:grid-cols-[120px_1fr]">
                       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/6">
-                        <img src={it.previewUrl} alt="" className="h-28 w-full object-cover" loading="lazy" />
+                        <img src={it.previewUrl} alt="" className="h-28 w-full object-contain object-center" loading="lazy" decoding="async" />
                       </div>
                       <div className="grid gap-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
