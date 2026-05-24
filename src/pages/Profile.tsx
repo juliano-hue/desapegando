@@ -48,6 +48,10 @@ export default function Profile() {
   const [sales, setSales] = useState<Sale[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [loadingSales, setLoadingSales] = useState(false)
+  const [purgeOpen, setPurgeOpen] = useState(false)
+  const [purgeConfirm, setPurgeConfirm] = useState('')
+  const [purgeBusy, setPurgeBusy] = useState(false)
+  const [purgeMessage, setPurgeMessage] = useState<string | null>(null)
 
   const user = session.user
 
@@ -110,6 +114,26 @@ export default function Profile() {
     setLoadingSales(false)
   }
 
+  async function purgeListings() {
+    if (purgeBusy) return
+    setPurgeBusy(true)
+    setPurgeMessage(null)
+    const r = await apiFetch<{ deletedListings: number; remaining: number }>('/api/profile/listings/purge', {
+      method: 'POST',
+      json: { confirm: purgeConfirm },
+    })
+    if ('error' in r) {
+      setPurgeMessage(r.error)
+      setPurgeBusy(false)
+      return
+    }
+    await loadListings()
+    setPurgeBusy(false)
+    setPurgeOpen(false)
+    setPurgeConfirm('')
+    setPurgeMessage(`Anúncios removidos: ${r.deletedListings}. Restantes: ${r.remaining}.`)
+  }
+
   useEffect(() => {
     if (tab === 'anuncios') void loadListings()
     if (tab === 'compras') void loadOrders()
@@ -137,6 +161,29 @@ export default function Profile() {
   return (
     <AppShell>
       <div className="grid gap-5">
+        {purgeOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950 p-5">
+              <div className="text-sm font-semibold text-slate-100">Apagar todos os anúncios</div>
+              <div className="mt-2 text-sm text-slate-300">
+                Isso remove permanentemente todos os seus anúncios e fotos associadas. Para confirmar, digite APAGAR.
+              </div>
+              <div className="mt-4 grid gap-2">
+                <Input value={purgeConfirm} onChange={(e) => setPurgeConfirm(e.target.value)} placeholder="Digite APAGAR" />
+                {purgeMessage ? <div className="text-sm text-rose-200">{purgeMessage}</div> : null}
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button variant="ghost" onClick={() => setPurgeOpen(false)} disabled={purgeBusy}>
+                  Cancelar
+                </Button>
+                <Button variant="danger" onClick={() => void purgeListings()} disabled={purgeBusy || purgeConfirm.trim().toUpperCase() !== 'APAGAR'}>
+                  {purgeBusy ? 'Apagando…' : 'Apagar tudo'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -251,10 +298,18 @@ export default function Profile() {
           <section className="grid gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-100">Seus anúncios</h2>
-              <Link to="/anunciar">
-                <Button size="sm">Criar anúncio</Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="danger" onClick={() => setPurgeOpen(true)} disabled={listings.length === 0}>
+                  Apagar tudo
+                </Button>
+                <Link to="/anunciar">
+                  <Button size="sm">Criar anúncio</Button>
+                </Link>
+              </div>
             </div>
+            {purgeMessage ? (
+              <div className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-slate-200">{purgeMessage}</div>
+            ) : null}
             {listings.length === 0 ? (
               <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
                 Você ainda não tem anúncios. Crie o primeiro em poucos cliques.

@@ -12,6 +12,10 @@ const patchSchema = z.object({
   isEmailPublic: z.boolean().optional(),
 })
 
+const purgeSchema = z.object({
+  confirm: z.string().min(1),
+})
+
 router.patch('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const authUser = (req as Request & { authUser: { id: string } }).authUser
   const parsed = patchSchema.safeParse(req.body)
@@ -35,6 +39,43 @@ router.get('/listings', requireAuth, async (req: Request, res: Response): Promis
     include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 }, category: true, subCategory: true },
   })
   res.status(200).json({ success: true, listings })
+})
+
+router.post('/listings/purge', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const authUser = (req as Request & { authUser: { id: string } }).authUser
+  const parsed = purgeSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: 'Dados inválidos' })
+    return
+  }
+  if (parsed.data.confirm.trim().toUpperCase() !== 'APAGAR') {
+    res.status(400).json({ success: false, error: 'Confirmação inválida' })
+    return
+  }
+
+  const ids = await prisma.listing.findMany({ where: { userId: authUser.id }, select: { id: true } })
+  const listingIds = ids.map((x) => x.id)
+  if (listingIds.length === 0) {
+    res.status(200).json({ success: true, deletedListings: 0, deletedImages: 0, deletedOrders: 0, deletedSales: 0, remaining: 0 })
+    return
+  }
+
+  const [orders, sales, images, listings] = await prisma.$transaction([
+    prisma.order.deleteMany({ where: { listingId: { in: listingIds } } }),
+    prisma.sale.deleteMany({ where: { listingId: { in: listingIds } } }),
+    prisma.listingImage.deleteMany({ where: { listingId: { in: listingIds } } }),
+    prisma.listing.deleteMany({ where: { id: { in: listingIds } } }),
+  ])
+
+  const remaining = await prisma.listing.count({ where: { userId: authUser.id } })
+  res.status(200).json({
+    success: true,
+    deletedListings: listings.count,
+    deletedImages: images.count,
+    deletedOrders: orders.count,
+    deletedSales: sales.count,
+    remaining,
+  })
 })
 
 router.get('/listings/next-pending', requireAuth, async (req: Request, res: Response): Promise<void> => {
