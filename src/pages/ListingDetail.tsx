@@ -276,11 +276,13 @@ export default function ListingDetail() {
                         setReserveBusy(true)
                         setReserveInfo('Abrindo WhatsApp…')
 
+                        const photoUrl = listing.images?.[0]?.url
                         const msg =
                           `Olá! Meu nome é ${reserveName.trim()}.\n` +
                           `Meu telefone: ${formatBrazilPhone(reservePhoneDigits)}.\n\n` +
                           `Tenho interesse no anúncio: "${listing.title}" (ID: ${listing.id}).\n` +
-                          `Podemos conversar para finalizar a negociação?`
+                          `Podemos conversar para finalizar a negociação?` +
+                          (photoUrl ? `\n\nFoto: ${photoUrl}` : '')
 
                         const url = `https://wa.me/${sellerWaMe}?text=${encodeURIComponent(msg)}`
                         window.open(url, '_blank', 'noopener,noreferrer')

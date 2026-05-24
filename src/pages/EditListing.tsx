@@ -41,6 +41,16 @@ export default function EditListing() {
   }, [])
 
   useEffect(() => {
+    if (!id) return
+    setStep(1)
+    setError(null)
+    setBusy(false)
+    setPostSaveOpen(false)
+    setPostSaveMessage(null)
+    setPostSaveBusy(false)
+  }, [id])
+
+  useEffect(() => {
     if (session.loading) return
     if (!session.user) nav('/auth')
   }, [session.user, session.loading])
