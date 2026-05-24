@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { prisma } from '../db.js'
-import { requireAuth } from '../auth.js'
+import { readUserFromRequest, requireAuth } from '../auth.js'
 
 const router = Router()
 
@@ -12,11 +12,14 @@ const createSchema = z.object({
   currency: z.string().min(3).max(3).optional(),
   categoryId: z.string().optional(),
   subCategoryId: z.string().optional().nullable(),
+  status: z.enum(['ACTIVE', 'RESERVED', 'SOLD', 'HIDDEN']).optional(),
   needsReview: z.boolean().optional(),
   city: z.string().optional().nullable(),
   state: z.string().optional().nullable(),
   images: z.array(z.object({ url: z.string().min(1), sortOrder: z.number().int().optional() })).optional(),
 })
+
+const SOLD_RETENTION_MS = 1000 * 60 * 60 * 24
 
 async function resolveCategoryId(categoryId: string | undefined): Promise<string> {
   const id = (categoryId ?? '').trim()
@@ -46,18 +49,29 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   const page = Math.max(1, Number(req.query.page ?? 1))
   const pageSize = 24
 
+  const soldSince = new Date(Date.now() - SOLD_RETENTION_MS)
+
   const where = {
-    status: 'ACTIVE' as const,
-    ...(query
-      ? {
-          OR: [
-            { title: { contains: query } },
-            { description: { contains: query } },
-          ],
-        }
-      : {}),
-    ...(categoryId ? { categoryId } : {}),
-    ...(subCategoryId ? { subCategoryId } : {}),
+    AND: [
+      ...(query
+        ? [
+            {
+              OR: [
+                { title: { contains: query } },
+                { description: { contains: query } },
+              ],
+            },
+          ]
+        : []),
+      ...(categoryId ? [{ categoryId }] : []),
+      ...(subCategoryId ? [{ subCategoryId }] : []),
+      {
+        OR: [
+          { status: 'ACTIVE' as const },
+          { status: 'SOLD' as const, soldAt: { gte: soldSince } },
+        ],
+      },
+    ],
   }
 
   const [total, listings] = await Promise.all([
@@ -88,6 +102,22 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     res.status(404).json({ success: false, error: 'Anúncio não encontrado' })
     return
   }
+
+  const authUser = readUserFromRequest(req)
+  const isOwner = Boolean(authUser?.id && listing.userId === authUser.id)
+  if (!isOwner) {
+    if (listing.status === 'SOLD') {
+      const soldSince = Date.now() - SOLD_RETENTION_MS
+      if (!listing.soldAt || listing.soldAt.getTime() < soldSince) {
+        res.status(404).json({ success: false, error: 'Anúncio não encontrado' })
+        return
+      }
+    } else if (listing.status !== 'ACTIVE') {
+      res.status(404).json({ success: false, error: 'Anúncio não encontrado' })
+      return
+    }
+  }
+
   res.status(200).json({ success: true, listing })
 })
 
@@ -156,10 +186,23 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response): Promise<v
         : data.subCategoryId ?? null
       : await resolveSubCategoryId(data.subCategoryId, categoryId)
 
+  const status = data.status === undefined ? undefined : data.status
+  const soldAt =
+    data.status === undefined
+      ? undefined
+      : data.status === 'SOLD'
+        ? existing.status === 'SOLD'
+          ? existing.soldAt ?? new Date()
+          : new Date()
+        : existing.status === 'SOLD'
+          ? null
+          : undefined
+
   const listing = await prisma.listing.update({
     where: { id: req.params.id },
     data: {
-      status: 'ACTIVE',
+      status,
+      soldAt,
       title,
       description,
       priceCents: data.priceCents === undefined ? undefined : Number.isFinite(data.priceCents) ? data.priceCents : 0,
@@ -179,6 +222,14 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response): Promise<v
     },
     include: { images: { orderBy: { sortOrder: 'asc' } }, category: true, subCategory: true },
   })
+
+  if (data.status === 'SOLD' && existing.status !== 'SOLD') {
+    await prisma.sale.upsert({
+      where: { listingId: listing.id },
+      create: { listingId: listing.id, sellerId: authUser.id, status: 'COMPLETED' },
+      update: { status: 'COMPLETED' },
+    })
+  }
 
   res.status(200).json({ success: true, listing })
 })

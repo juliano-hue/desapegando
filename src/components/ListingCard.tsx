@@ -17,7 +17,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
         'group relative overflow-hidden rounded-2xl border border-white/10 bg-white/4 transition hover:bg-white/6 hover:border-white/14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
       )}
     >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-white/6">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-white/6">
         {cover ? (
           <img
             src={cover}
@@ -30,6 +30,13 @@ export function ListingCard({ listing }: { listing: Listing }) {
             Sem foto
           </div>
         )}
+        {listing.status === 'SOLD' ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="rounded-2xl border border-white/20 bg-black/50 px-6 py-3 text-lg font-semibold tracking-[0.35em] text-white">
+              VENDIDO
+            </div>
+          </div>
+        ) : null}
       </div>
       <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -63,4 +70,3 @@ export function ListingCard({ listing }: { listing: Listing }) {
     </Link>
   )
 }
-

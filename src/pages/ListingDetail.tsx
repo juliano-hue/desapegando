@@ -43,6 +43,8 @@ export default function ListingDetail() {
   const [listing, setListing] = useState<Listing | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeImage, setActiveImage] = useState(0)
+  const [sellBusy, setSellBusy] = useState(false)
+  const [sellInfo, setSellInfo] = useState<string | null>(null)
   const [reserveName, setReserveName] = useState('')
   const [reservePhoneDigits, setReservePhoneDigits] = useState('')
   const [reserveTouched, setReserveTouched] = useState<{ name: boolean; phone: boolean }>({ name: false, phone: false })
@@ -63,28 +65,34 @@ export default function ListingDetail() {
       }
       setListing(r.listing)
       setActiveImage(0)
+      setSellInfo(null)
     })()
   }, [id])
 
   const cover = listing?.images?.[activeImage]?.url ?? listing?.images?.[0]?.url ?? null
   const seller = listing?.user
+  const isOwner = Boolean(listing && session.user?.id && seller?.id && session.user.id === seller.id)
+  const contactBlocked = Boolean(listing?.status === 'SOLD' && !isOwner)
   const canShowPhone = Boolean(seller?.isPhonePublic && seller.phone)
   const canShowEmail = Boolean(seller?.isEmailPublic && seller.email)
   const sellerWaMe = seller?.phone ? normalizeWhatsAppToWaMe(seller.phone) : null
 
   const reserveNameOk = reserveName.trim().length > 0 && reserveName.trim().length <= 100
   const reservePhoneOk = reservePhoneDigits.length === 10 || reservePhoneDigits.length === 11
-  const canReserve = Boolean(listing && seller && session.user?.id !== seller.id && sellerWaMe && reserveNameOk && reservePhoneOk)
+  const canReserve = Boolean(
+    listing && seller && session.user?.id !== seller.id && sellerWaMe && reserveNameOk && reservePhoneOk && !contactBlocked,
+  )
 
   const nameError = !reserveNameOk ? 'Informe seu nome (até 100 caracteres).' : null
   const phoneError = !reservePhoneOk ? 'Informe um telefone válido com DDD.' : null
 
   const contactHint = useMemo(() => {
     if (!seller) return null
+    if (contactBlocked) return 'Este anúncio foi vendido. Contato e reserva estão indisponíveis.'
     if (session.user?.id === seller.id) return 'Este anúncio é seu.'
     if (!canShowPhone && !canShowEmail) return 'O vendedor preferiu não exibir contato público.'
     return null
-  }, [seller?.id, session.user?.id, canShowPhone, canShowEmail])
+  }, [seller?.id, session.user?.id, canShowPhone, canShowEmail, contactBlocked])
 
   return (
     <AppShell>
@@ -96,9 +104,44 @@ export default function ListingDetail() {
           </Button>
           <div className="flex items-center gap-2">
             {listing && session.user?.id === seller?.id ? (
-              <Link to={`/anuncio/${listing.id}/editar`}>
-                <Button variant="subtle">Editar</Button>
-              </Link>
+              <>
+                {listing.status !== 'SOLD' ? (
+                  <Button
+                    variant="subtle"
+                    disabled={sellBusy}
+                    onClick={() => {
+                      if (!listing || sellBusy) return
+                      setSellBusy(true)
+                      setSellInfo(null)
+                      void (async () => {
+                        const r = await apiFetch<{ listing: Listing }>(`/api/listings/${listing.id}`, {
+                          method: 'PATCH',
+                          json: { status: 'SOLD' },
+                        })
+                        if ('error' in r) {
+                          setSellInfo(r.error)
+                          setSellBusy(false)
+                          return
+                        }
+                        const fetched = await apiFetch<{ listing: Listing }>(`/api/listings/${listing.id}`)
+                        if ('error' in fetched) {
+                          setSellInfo(fetched.error)
+                          setSellBusy(false)
+                          return
+                        }
+                        setListing(fetched.listing)
+                        setSellBusy(false)
+                        setSellInfo('Anúncio marcado como vendido.')
+                      })()
+                    }}
+                  >
+                    {sellBusy ? 'Marcando…' : 'Marcar como vendido'}
+                  </Button>
+                ) : null}
+                <Link to={`/anuncio/${listing.id}/editar`}>
+                  <Button variant="subtle">Editar</Button>
+                </Link>
+              </>
             ) : null}
             <Link to="/">
               <Button variant="subtle">Explorar</Button>
@@ -145,12 +188,19 @@ export default function ListingDetail() {
               </div>
 
               <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/4">
-                <div className="aspect-[16/10] w-full bg-white/6">
+                <div className="relative aspect-[16/10] w-full bg-white/6">
                   {cover ? (
                     <img src={cover} alt={listing.title} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">Sem fotos</div>
                   )}
+                  {listing.status === 'SOLD' ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <div className="rounded-2xl border border-white/20 bg-black/50 px-8 py-4 text-xl font-semibold tracking-[0.35em] text-white">
+                        VENDIDO
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 {listing.images.length > 1 ? (
                   <div className="grid grid-cols-6 gap-2 p-3">
@@ -193,8 +243,14 @@ export default function ListingDetail() {
                 </div>
               ) : null}
 
+              {sellInfo ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/4 p-4 text-sm text-slate-200">
+                  {sellInfo}
+                </div>
+              ) : null}
+
               <div className="mt-4 grid gap-2">
-                {canShowPhone ? (
+                {canShowPhone && !contactBlocked ? (
                   <a
                     href={`tel:${seller?.phone}`}
                     className="inline-flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-slate-100 hover:bg-white/10"
@@ -207,7 +263,7 @@ export default function ListingDetail() {
                   </a>
                 ) : null}
 
-                {canShowEmail ? (
+                {canShowEmail && !contactBlocked ? (
                   <a
                     href={`mailto:${seller?.email}`}
                     className="inline-flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-slate-100 hover:bg-white/10"
@@ -221,7 +277,7 @@ export default function ListingDetail() {
                 ) : null}
               </div>
 
-              {sellerWaMe && session.user?.id !== seller?.id ? (
+              {sellerWaMe && session.user?.id !== seller?.id && !contactBlocked ? (
                 <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
                   <div className="text-sm font-semibold text-slate-100">Reservar pelo WhatsApp</div>
                   <div className="mt-1 text-xs text-slate-300">
@@ -299,7 +355,7 @@ export default function ListingDetail() {
                 </div>
               ) : null}
 
-              {!sellerWaMe && session.user?.id !== seller?.id ? (
+              {!sellerWaMe && session.user?.id !== seller?.id && !contactBlocked ? (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-300">
                   Reserva pelo WhatsApp indisponível: o vendedor não tem telefone cadastrado.
                 </div>

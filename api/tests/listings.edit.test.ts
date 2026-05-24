@@ -180,4 +180,48 @@ suite('Edição de anúncios', () => {
     const patched = await other.patch(`/api/listings/${id}`).send({ title: 'Tentativa' })
     expect(patched.status).toBe(403)
   })
+
+  it('mantém anúncio vendido público por 24h e depois oculta para não-dono', async () => {
+    const owner = request.agent(app as any)
+    const other = request.agent(app as any)
+    await register(owner, `sold-owner-${Date.now()}@exemplo.com`)
+    await register(other, `sold-other-${Date.now()}@exemplo.com`)
+
+    const created = await owner.post('/api/listings').send({
+      title: 'Produto vendido',
+      description: 'Descrição mínima para teste',
+      priceCents: 1000,
+      categoryId,
+    })
+    expect(created.status).toBe(201)
+    const id = created.body.listing.id as string
+
+    const sold = await owner.patch(`/api/listings/${id}`).send({ status: 'SOLD' })
+    expect(sold.status).toBe(200)
+    expect(sold.body.listing.status).toBe('SOLD')
+    expect(sold.body.listing.soldAt).toBeTruthy()
+
+    const publicBefore = await other.get('/api/listings?query=vendido')
+    expect(publicBefore.status).toBe(200)
+    expect((publicBefore.body.listings as any[]).some((l) => l.id === id)).toBe(true)
+
+    const otherDetailBefore = await other.get(`/api/listings/${id}`)
+    expect(otherDetailBefore.status).toBe(200)
+
+    await prisma.listing.update({
+      where: { id },
+      data: { soldAt: new Date(Date.now() - 1000 * 60 * 60 * 26) },
+    })
+
+    const publicAfter = await other.get('/api/listings?query=vendido')
+    expect(publicAfter.status).toBe(200)
+    expect((publicAfter.body.listings as any[]).some((l) => l.id === id)).toBe(false)
+
+    const otherDetailAfter = await other.get(`/api/listings/${id}`)
+    expect(otherDetailAfter.status).toBe(404)
+
+    const ownerDetailAfter = await owner.get(`/api/listings/${id}`)
+    expect(ownerDetailAfter.status).toBe(200)
+    expect(ownerDetailAfter.body.listing.status).toBe('SOLD')
+  })
 })

@@ -32,6 +32,7 @@ export type Listing = {
   priceCents: number
   currency: string
   status: string
+  soldAt?: string | null
   needsReview?: boolean
   city: string | null
   state: string | null

@@ -27,7 +27,10 @@ export default function EditListing() {
   const [state, setState] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [initialCoverUrl, setInitialCoverUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<string>('ACTIVE')
   const [busy, setBusy] = useState(false)
+  const [sellBusy, setSellBusy] = useState(false)
+  const [sellInfo, setSellInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingListing, setLoadingListing] = useState(true)
   const [postSaveOpen, setPostSaveOpen] = useState(false)
@@ -53,6 +56,9 @@ export default function EditListing() {
     setPostSaveBusy(false)
     setDragging(false)
     setInitialCoverUrl(null)
+    setStatus('ACTIVE')
+    setSellBusy(false)
+    setSellInfo(null)
   }, [id])
 
   useEffect(() => {
@@ -83,6 +89,7 @@ export default function EditListing() {
       setSubCategoryId(l.subCategory?.id ?? '')
       setCity(l.city ?? '')
       setState(l.state ?? '')
+      setStatus(l.status ?? 'ACTIVE')
       const urls = (l.images ?? []).map((i) => i.url)
       setImages(urls)
       setInitialCoverUrl(urls[0] ?? null)
@@ -256,13 +263,17 @@ export default function EditListing() {
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>
         ) : null}
 
+        {sellInfo ? (
+          <div className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-slate-200">{sellInfo}</div>
+        ) : null}
+
         {!loadingListing && !error ? (
           <section className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6">
             <div className="grid gap-5">
               <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr] md:items-start">
                 <div className="rounded-3xl border border-white/10 bg-white/4 p-3">
                   <div className="text-xs font-semibold text-slate-200">Imagem principal</div>
-                  <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-white/6">
+                  <div className="relative mt-2 overflow-hidden rounded-2xl border border-white/10 bg-white/6">
                     {initialCoverUrl ? (
                       <img src={initialCoverUrl} alt="Imagem principal do anúncio" className="aspect-square w-full object-cover" />
                     ) : currentCoverUrl ? (
@@ -270,6 +281,13 @@ export default function EditListing() {
                     ) : (
                       <div className="flex aspect-square items-center justify-center text-sm text-slate-400">Sem foto</div>
                     )}
+                    {status === 'SOLD' ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                        <div className="rounded-2xl border border-white/20 bg-black/50 px-6 py-3 text-lg font-semibold tracking-[0.35em] text-white">
+                          VENDIDO
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   {initialCoverUrl && currentCoverUrl && currentCoverUrl !== initialCoverUrl ? (
                     <div className="mt-2 text-xs text-slate-300">Uma nova foto foi adicionada, mas a imagem original continua visível durante a edição.</div>
@@ -441,9 +459,39 @@ export default function EditListing() {
                 <Link to={`/anuncio/${id}`}>
                   <Button variant="ghost">Cancelar</Button>
                 </Link>
-                <Button onClick={() => void save()} disabled={busy}>
-                  {busy ? 'Salvando…' : 'Salvar alterações'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {status !== 'SOLD' ? (
+                    <Button
+                      variant="subtle"
+                      disabled={busy || sellBusy}
+                      onClick={() => {
+                        if (!id) return
+                        if (sellBusy) return
+                        setSellBusy(true)
+                        setSellInfo(null)
+                        void (async () => {
+                          const r = await apiFetch<{ listing: Listing }>(`/api/listings/${id}`, {
+                            method: 'PATCH',
+                            json: { status: 'SOLD' },
+                          })
+                          if ('error' in r) {
+                            setSellInfo(r.error)
+                            setSellBusy(false)
+                            return
+                          }
+                          setStatus(r.listing.status ?? 'SOLD')
+                          setSellBusy(false)
+                          setSellInfo('Anúncio marcado como vendido.')
+                        })()
+                      }}
+                    >
+                      {sellBusy ? 'Marcando…' : 'Marcar como vendido'}
+                    </Button>
+                  ) : null}
+                  <Button onClick={() => void save()} disabled={busy}>
+                    {busy ? 'Salvando…' : 'Salvar alterações'}
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
