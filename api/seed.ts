@@ -12,6 +12,7 @@ export async function ensureSeed(): Promise<void> {
     'Blusas',
     'Camisas',
     'Camisetas',
+    'Saias',
     'Shorts e Bermudas',
     'Sapatos',
     'Vestidos',

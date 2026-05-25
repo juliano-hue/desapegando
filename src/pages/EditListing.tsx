@@ -31,6 +31,10 @@ export default function EditListing() {
   const [busy, setBusy] = useState(false)
   const [sellBusy, setSellBusy] = useState(false)
   const [sellInfo, setSellInfo] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteInfo, setDeleteInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadingListing, setLoadingListing] = useState(true)
   const [postSaveOpen, setPostSaveOpen] = useState(false)
@@ -59,6 +63,10 @@ export default function EditListing() {
     setStatus('ACTIVE')
     setSellBusy(false)
     setSellInfo(null)
+    setDeleteOpen(false)
+    setDeleteConfirm('')
+    setDeleteBusy(false)
+    setDeleteInfo(null)
   }, [id])
 
   useEffect(() => {
@@ -200,6 +208,62 @@ export default function EditListing() {
   return (
     <AppShell>
       <div className="mx-auto grid max-w-3xl gap-5">
+        {deleteOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950 p-5">
+              <div className="text-sm font-semibold text-slate-100">Excluir anúncio</div>
+              <div className="mt-2 text-sm text-slate-300">
+                Esta ação remove o anúncio permanentemente. Para confirmar, digite APAGAR.
+              </div>
+              <div className="mt-4 grid gap-2">
+                <Input
+                  value={deleteConfirm}
+                  onChange={(e) => {
+                    setDeleteConfirm(e.target.value)
+                    setDeleteInfo(null)
+                  }}
+                  placeholder="Digite APAGAR"
+                />
+                {deleteInfo ? <div className="text-sm text-rose-200">{deleteInfo}</div> : null}
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (deleteBusy) return
+                    setDeleteOpen(false)
+                  }}
+                  disabled={deleteBusy}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (!id) return
+                    if (deleteBusy) return
+                    if (deleteConfirm.trim().toUpperCase() !== 'APAGAR') return
+                    setDeleteBusy(true)
+                    setDeleteInfo(null)
+                    void (async () => {
+                      const r = await apiFetch(`/api/listings/${id}`, { method: 'DELETE' })
+                      if ('error' in r) {
+                        setDeleteInfo(r.error)
+                        setDeleteBusy(false)
+                        return
+                      }
+                      nav(returnTo)
+                    })()
+                  }}
+                  disabled={deleteBusy || deleteConfirm.trim().toUpperCase() !== 'APAGAR'}
+                >
+                  {deleteBusy ? 'Excluindo…' : 'Excluir'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -265,6 +329,9 @@ export default function EditListing() {
 
         {sellInfo ? (
           <div className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-slate-200">{sellInfo}</div>
+        ) : null}
+        {deleteInfo && !deleteOpen ? (
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{deleteInfo}</div>
         ) : null}
 
         {!loadingListing && !error ? (
@@ -460,6 +527,18 @@ export default function EditListing() {
                   <Button variant="ghost">Cancelar</Button>
                 </Link>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="danger"
+                    disabled={busy || deleteBusy}
+                    onClick={() => {
+                      if (!id) return
+                      setDeleteOpen(true)
+                      setDeleteConfirm('')
+                      setDeleteInfo(null)
+                    }}
+                  >
+                    Excluir
+                  </Button>
                   {status !== 'SOLD' ? (
                     <Button
                       variant="subtle"

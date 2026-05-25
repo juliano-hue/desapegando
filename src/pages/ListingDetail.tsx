@@ -45,6 +45,10 @@ export default function ListingDetail() {
   const [activeImage, setActiveImage] = useState(0)
   const [sellBusy, setSellBusy] = useState(false)
   const [sellInfo, setSellInfo] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteInfo, setDeleteInfo] = useState<string | null>(null)
   const [reserveName, setReserveName] = useState('')
   const [reservePhoneDigits, setReservePhoneDigits] = useState('')
   const [reserveTouched, setReserveTouched] = useState<{ name: boolean; phone: boolean }>({ name: false, phone: false })
@@ -66,6 +70,10 @@ export default function ListingDetail() {
       setListing(r.listing)
       setActiveImage(0)
       setSellInfo(null)
+      setDeleteOpen(false)
+      setDeleteConfirm('')
+      setDeleteBusy(false)
+      setDeleteInfo(null)
     })()
   }, [id])
 
@@ -97,6 +105,62 @@ export default function ListingDetail() {
   return (
     <AppShell>
       <div className="grid gap-5">
+        {deleteOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950 p-5">
+              <div className="text-sm font-semibold text-slate-100">Excluir anúncio</div>
+              <div className="mt-2 text-sm text-slate-300">
+                Esta ação remove o anúncio permanentemente. Para confirmar, digite APAGAR.
+              </div>
+              <div className="mt-4 grid gap-2">
+                <Input
+                  value={deleteConfirm}
+                  onChange={(e) => {
+                    setDeleteConfirm(e.target.value)
+                    setDeleteInfo(null)
+                  }}
+                  placeholder="Digite APAGAR"
+                />
+                {deleteInfo ? <div className="text-sm text-rose-200">{deleteInfo}</div> : null}
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (deleteBusy) return
+                    setDeleteOpen(false)
+                  }}
+                  disabled={deleteBusy}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (!listing) return
+                    if (deleteBusy) return
+                    if (deleteConfirm.trim().toUpperCase() !== 'APAGAR') return
+                    setDeleteBusy(true)
+                    setDeleteInfo(null)
+                    void (async () => {
+                      const r = await apiFetch(`/api/listings/${listing.id}`, { method: 'DELETE' })
+                      if ('error' in r) {
+                        setDeleteInfo(r.error)
+                        setDeleteBusy(false)
+                        return
+                      }
+                      nav('/perfil?tab=anuncios')
+                    })()
+                  }}
+                  disabled={deleteBusy || deleteConfirm.trim().toUpperCase() !== 'APAGAR'}
+                >
+                  {deleteBusy ? 'Excluindo…' : 'Excluir'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex items-center justify-between">
           <Button variant="ghost" onClick={() => nav(-1)}>
             <ChevronLeft className="h-4 w-4" />
@@ -138,6 +202,18 @@ export default function ListingDetail() {
                     {sellBusy ? 'Marcando…' : 'Marcar como vendido'}
                   </Button>
                 ) : null}
+                <Button
+                  variant="danger"
+                  disabled={deleteBusy}
+                  onClick={() => {
+                    if (!listing) return
+                    setDeleteOpen(true)
+                    setDeleteConfirm('')
+                    setDeleteInfo(null)
+                  }}
+                >
+                  Excluir
+                </Button>
                 <Link to={`/anuncio/${listing.id}/editar`}>
                   <Button variant="subtle">Editar</Button>
                 </Link>

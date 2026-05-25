@@ -20,6 +20,19 @@ const createSchema = z.object({
 })
 
 const SOLD_RETENTION_MS = 1000 * 60 * 60 * 24
+let featuredUserId: string | null = null
+let featuredUserLoaded = false
+
+async function loadFeaturedUserId(): Promise<string | null> {
+  if (featuredUserLoaded) return featuredUserId
+  featuredUserLoaded = true
+  const u = await prisma.user.findFirst({
+    where: { fullName: { equals: 'Juliana Erzinger', mode: 'insensitive' } },
+    select: { id: true },
+  })
+  featuredUserId = u?.id ?? null
+  return featuredUserId
+}
 
 async function resolveCategoryId(categoryId: string | undefined): Promise<string> {
   const id = (categoryId ?? '').trim()
@@ -74,16 +87,63 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     ],
   }
 
-  const [total, listings] = await Promise.all([
+  const include = {
+    images: { orderBy: { sortOrder: 'asc' as const }, take: 1 },
+    category: true,
+    subCategory: true,
+  }
+
+  const featuredId = await loadFeaturedUserId()
+
+  if (!featuredId) {
+    const [total, listings] = await Promise.all([
+      prisma.listing.count({ where }),
+      prisma.listing.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ])
+
+    res.status(200).json({ success: true, total, page, pageSize, listings })
+    return
+  }
+
+  const featuredWhere = { AND: [...where.AND, { userId: featuredId }] }
+  const othersWhere = { AND: [...where.AND, { userId: { not: featuredId } }] }
+  const globalSkip = (page - 1) * pageSize
+
+  const [total, featuredCount] = await Promise.all([
     prisma.listing.count({ where }),
+    prisma.listing.count({ where: featuredWhere }),
+  ])
+
+  const takeFeatured = globalSkip < featuredCount ? Math.min(pageSize, featuredCount - globalSkip) : 0
+  const takeOthers = pageSize - takeFeatured
+  const othersSkip = globalSkip < featuredCount ? 0 : globalSkip - featuredCount
+
+  const [featuredListings, otherListings] = await Promise.all([
+    takeFeatured
+      ? prisma.listing.findMany({
+          where: featuredWhere,
+          orderBy: { createdAt: 'desc' },
+          include,
+          skip: globalSkip,
+          take: takeFeatured,
+        })
+      : Promise.resolve([]),
     prisma.listing.findMany({
-      where,
+      where: othersWhere,
       orderBy: { createdAt: 'desc' },
-      include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 }, category: true, subCategory: true },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      include,
+      skip: othersSkip,
+      take: takeOthers,
     }),
   ])
+
+  const listings = [...featuredListings, ...otherListings]
 
   res.status(200).json({ success: true, total, page, pageSize, listings })
 })
@@ -245,7 +305,13 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<
     res.status(403).json({ success: false, error: 'Sem permissão' })
     return
   }
-  await prisma.listing.delete({ where: { id: req.params.id } })
+
+  await prisma.$transaction([
+    prisma.order.deleteMany({ where: { listingId: existing.id } }),
+    prisma.sale.deleteMany({ where: { listingId: existing.id } }),
+    prisma.listingImage.deleteMany({ where: { listingId: existing.id } }),
+    prisma.listing.delete({ where: { id: existing.id } }),
+  ])
   res.status(200).json({ success: true })
 })
 
